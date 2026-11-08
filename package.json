@@ -1,0 +1,47 @@
+{
+  "name": "manao",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A personal hub for turning thoughts, tasks, and information into clarity and purposeful action.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "manao": "dist/cli.js"
+  },
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
+    "build": "tsc -p tsconfig.build.json && vite build --config dashboard/vite.config.ts",
+    "dev:dashboard": "vite --config dashboard/vite.config.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p dashboard/tsconfig.json && tsc -p dashboard/sw/tsconfig.json",
+    "test": "vitest run",
+    "test:file": "vitest run",
+    "lint": "biome lint",
+    "lint:file": "biome lint",
+    "lint:claude": "biome lint --diagnostic-level=error",
+    "check": "bun run typecheck && bun run lint:claude && bun run test",
+    "dev": "bun run build && d=$(mktemp -d) && echo \"manao dev store: $d\" && echo '{\"api\":{\"port\":0}}' > $d/config.json && MANAO_DB=$d/hub.db MANAO_CONFIG=$d/config.json node dist/cli.js run"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@modelcontextprotocol/client": "^2.3.1",
+    "@preact/preset-vite": "^2.10.6",
+    "@testing-library/preact": "^3.2.4",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^22.0.0",
+    "happy-dom": "^20.14.6",
+    "preact": "^10.29.8",
+    "typescript": "^5.6.0",
+    "vite": "^5.4.21",
+    "vitest": "^2.1.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.3.1",
+    "better-sqlite3": "^12.11.1",
+    "zod": "^4.6.7"
+  },
+  "trustedDependencies": [
+    "better-sqlite3"
+  ]
+}

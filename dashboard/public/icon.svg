@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>Manaʻo</title>
+  <rect width="512" height="512" rx="112" fill="#f3efe6"/>
+  <g stroke="#1f1c18" stroke-width="22" stroke-linecap="round">
+    <path d="M222 168H364"/>
+    <path d="M222 256H330"/>
+    <path d="M222 344H350"/>
+  </g>
+  <circle cx="160" cy="168" r="24" fill="#3d6b48"/>
+  <rect x="140" y="236" width="40" height="40" fill="#a24d17" transform="rotate(45 160 256)"/>
+  <circle cx="160" cy="344" r="24" fill="#3d6b48"/>
+</svg>

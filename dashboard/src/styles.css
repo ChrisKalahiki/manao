@@ -1,0 +1,890 @@
+/*
+ * A quiet ledger: warm paper, ink, hairline rules. Colour is kept for state
+ * (moss for Healthy, rust for Stale) so it always means something.
+ * Fonts are local only; the CSP allows nothing from elsewhere.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --paper: #f3efe6;
+  --surface: #fbf9f3;
+  --ink: #1f1c18;
+  --ink-soft: #5c564c;
+  --ink-faint: #8a8377;
+  --rule: #ddd6c8;
+  --ok: #3d6b48;
+  --stale: #a24d17;
+  --stale-wash: #f6e7d9;
+
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Noto Serif", "Source Serif Pro", Georgia, serif;
+  --sans: -apple-system, "Segoe UI Variable Text", "Segoe UI", "Google Sans Text", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, monospace;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --radius: 0.625rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #151412;
+    --surface: #1d1b18;
+    --ink: #ede8de;
+    --ink-soft: #b0a99c;
+    --ink-faint: #7f796e;
+    --rule: #33302b;
+    --ok: #8fc29b;
+    --stale: #eba574;
+    --stale-wash: #33251b;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1rem/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+.shell {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: max(var(--space-6), env(safe-area-inset-top)) max(var(--space-4), env(safe-area-inset-right))
+    max(var(--space-8), env(safe-area-inset-bottom)) max(var(--space-4), env(safe-area-inset-left));
+}
+
+.masthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+  border-bottom: 1px solid var(--ink);
+}
+
+.masthead h1 {
+  font: 500 1.75rem/1.1 var(--serif);
+  letter-spacing: -0.01em;
+}
+
+/* The views, on their own line under the title and date; the current one is underlined onto the masthead's rule. */
+.tabs {
+  order: 1;
+  flex-basis: 100%;
+  display: flex;
+  gap: var(--space-6);
+}
+
+.tab {
+  padding: var(--space-1) 0 var(--space-2);
+  margin-bottom: -1px;
+  border-bottom: 3px solid transparent;
+  color: var(--ink-soft);
+  font: 600 0.75rem/1.2 var(--sans);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.tab[aria-current="page"] {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.today {
+  color: var(--ink-soft);
+  font: italic 400 1rem/1.2 var(--serif);
+}
+
+.banner {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+
+.notice {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--stale-wash);
+  color: var(--ink);
+  border-left: 3px solid var(--stale);
+}
+
+.notice-lead {
+  font-weight: 600;
+}
+
+.notice-source {
+  font: 500 0.875em/1 var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.notice time {
+  font-variant-numeric: tabular-nums;
+}
+
+.notice-detail {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--ink-soft);
+  font: 0.8125rem/1.4 var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.widgets {
+  display: grid;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+@media (min-width: 52rem) {
+  .widgets {
+    grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+  }
+}
+
+.widget {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: var(--space-4) var(--space-4) var(--space-2);
+}
+
+.widget-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--rule);
+}
+
+.widget-head h2 {
+  font: 600 0.75rem/1.2 var(--sans);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.widget-count {
+  color: var(--ink-faint);
+  font: 0.8125rem/1.2 var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  padding: var(--space-4) 0;
+  color: var(--ink-soft);
+  font-style: italic;
+  font-family: var(--serif);
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--rule);
+  animation: settle 320ms ease-out both;
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.row:nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.row:nth-child(3) {
+  animation-delay: 80ms;
+}
+
+.row:nth-child(n + 4) {
+  animation-delay: 120ms;
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    animation: none;
+  }
+}
+
+.row-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.source-name {
+  font: 500 0.9375rem/1.3 var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.state {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font: 600 0.8125rem/1.2 var(--sans);
+  color: var(--ok);
+}
+
+.state::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* An agent's default mark, placed before every more specific .state rule so none follows them with lower specificity. */
+.agent .state {
+  color: var(--ink-faint);
+  font-weight: 500;
+}
+
+.source[data-healthy="false"] .state {
+  color: var(--stale);
+}
+
+.source[data-healthy="false"] .state::before {
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+
+.meta {
+  margin-top: var(--space-1);
+  color: var(--ink-faint);
+  font: 0.8125rem/1.4 var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.error,
+.note {
+  margin-top: var(--space-2);
+  font: 0.8125rem/1.45 var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.error {
+  padding: var(--space-2) var(--space-3);
+  border-radius: calc(var(--radius) / 2);
+  background: var(--stale-wash);
+  color: var(--ink);
+}
+
+.note {
+  color: var(--ink-soft);
+}
+
+/*
+ * Agents. Rust marks what needs Chris (blocked); a hollow ring is finished and
+ * unseen; moss is at work; idle and unknown recede to faint ink.
+ */
+
+.agent-title {
+  min-width: 0;
+  font: 500 0.9375rem/1.3 var(--sans);
+  overflow-wrap: anywhere;
+}
+
+.agent[data-status="needs_attention"] .state {
+  color: var(--stale);
+  font-weight: 600;
+}
+
+.agent[data-status="needs_attention"] .state::before {
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+
+.agent[data-status="finished"] .state {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.agent[data-status="finished"] .state::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+.agent[data-status="running"] .state {
+  color: var(--ok);
+}
+
+.agent[data-status="running"] .state::before {
+  animation: agent-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes agent-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent[data-status="running"] .state::before {
+    animation: none;
+  }
+}
+
+.agent-meta {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-2);
+}
+
+.agent-meta > * + *::before {
+  content: "·";
+  margin-right: var(--space-2);
+  color: var(--ink-faint);
+}
+
+.agent-kind {
+  font-family: var(--mono);
+}
+
+.agent[data-stale="true"] .agent-title,
+.agent[data-stale="true"] .state {
+  color: var(--ink-faint);
+}
+
+.agent-stale {
+  color: var(--stale);
+  font-style: italic;
+}
+
+/* Needs you: any Item with Attention. Its kind sits where an agent's Status would, in faint ink. */
+
+.needs-you .state {
+  color: var(--ink-faint);
+  font-weight: 500;
+}
+
+.needs-you-title {
+  min-width: 0;
+  font: 500 0.9375rem/1.3 var(--sans);
+  overflow-wrap: anywhere;
+}
+
+.needs-you-meta {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-2);
+}
+
+.needs-you-meta > * + *::before {
+  content: "·";
+  margin-right: var(--space-2);
+  color: var(--ink-faint);
+}
+
+.needs-you-source {
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.needs-you[data-stale="true"] .needs-you-title {
+  color: var(--ink-faint);
+}
+
+.needs-you-stale {
+  color: var(--stale);
+  font-style: italic;
+}
+
+/*
+ * Todos: the Weekly Note's to-do section as an outline. Group names stand in
+ * for its plain bullets, a hairline guide shows nesting, and the marks echo
+ * its checkboxes without being controls. Done and dropped recede into faint
+ * ink rather than taking colour, which stays reserved for Health.
+ */
+
+.todo-outline,
+.todo-nest {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.todo-outline {
+  padding: var(--space-2) 0 var(--space-3);
+}
+
+.todo-nest {
+  margin-left: 0.4375rem;
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--rule);
+}
+
+.todo-group {
+  padding-top: var(--space-3);
+}
+
+.todo-group:first-child {
+  padding-top: var(--space-1);
+}
+
+.todo-group-name {
+  padding-bottom: var(--space-1);
+  font: 600 0.8125rem/1.3 var(--sans);
+  color: var(--ink-soft);
+}
+
+.todo-outline > .todo-group > .todo-group-name {
+  font: 500 1.0625rem/1.3 var(--serif);
+  color: var(--ink);
+}
+
+.todo-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.3125rem 0;
+  font: 0.9375rem/1.45 var(--sans);
+}
+
+.todo-mark {
+  flex: none;
+  position: relative;
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-top: calc((1.45em - 0.875rem) / 2);
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 3px;
+}
+
+.todo[data-status="done"] > .todo-line .todo-mark {
+  border-color: var(--ink-faint);
+  background: var(--ink-faint);
+}
+
+.todo[data-status="done"] > .todo-line .todo-mark::after {
+  content: "";
+  position: absolute;
+  left: 0.21rem;
+  top: 0.03rem;
+  width: 0.22rem;
+  height: 0.45rem;
+  border: solid var(--surface);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
+.todo[data-status="dropped"] > .todo-line .todo-mark {
+  border-color: var(--ink-faint);
+}
+
+.todo[data-status="dropped"] > .todo-line .todo-mark::after {
+  content: "";
+  position: absolute;
+  left: 0.125rem;
+  right: 0.125rem;
+  top: calc(50% - 0.75px);
+  height: 1.5px;
+  background: var(--ink-faint);
+}
+
+.todo-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.todo[data-status="done"] > .todo-line .todo-title,
+.todo[data-status="dropped"] > .todo-line .todo-title {
+  color: var(--ink-faint);
+}
+
+.last-known {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  margin-top: var(--space-2);
+  color: var(--stale);
+  font: 600 0.8125rem/1.3 var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.last-known::before {
+  content: "";
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 1px;
+  background: currentColor;
+  transform: rotate(45deg);
+}
+
+/*
+ * Appointments: the week as a daybook. Each day opens with its name in the
+ * masthead's italic serif; rows lead with the time, as a diary does. Moss is
+ * what is happening now and rust what is about to need Chris, the same marks
+ * the Agents widget uses. Ended entries and the quiet ones (out of office,
+ * focus time) recede into faint ink instead of taking colour.
+ */
+
+.appt-days,
+.paper-days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.appt-day + .appt-day,
+.paper-day + .paper-day {
+  margin-top: var(--space-2);
+}
+
+.appt-day-head,
+.paper-day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0 var(--space-1);
+  border-bottom: 1px solid var(--rule);
+}
+
+.appt-day-name,
+.paper-day-name {
+  font: italic 500 1.0625rem/1.3 var(--serif);
+}
+
+.appt-day-date,
+.paper-day-date {
+  color: var(--ink-faint);
+  font: 0.75rem/1.2 var(--sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.appt-when {
+  min-width: 0;
+  color: var(--ink-soft);
+  font: 500 0.8125rem/1.3 var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.appt-title,
+.paper-title {
+  margin-top: 0.125rem;
+  font: 500 0.9375rem/1.35 var(--sans);
+  overflow-wrap: anywhere;
+}
+
+.appt-title a,
+.paper-title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.appt-title a:hover,
+.appt-title a:focus-visible,
+.paper-title a:hover,
+.paper-title a:focus-visible {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+.appt-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-2);
+}
+
+.appt-meta > * + *::before {
+  content: "·";
+  margin-right: var(--space-2);
+  color: var(--ink-faint);
+}
+
+.appt-location {
+  overflow-wrap: anywhere;
+}
+
+.appt-response {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.appt-kind {
+  font: italic 0.875rem/1.4 var(--serif);
+}
+
+.appt-join {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.2em;
+}
+
+.appt-join:hover,
+.appt-join:focus-visible {
+  text-decoration-color: currentColor;
+}
+
+.appt[data-status="ongoing"] .state {
+  color: var(--ok);
+}
+
+.appt[data-status="ongoing"] .appt-when {
+  color: var(--ok);
+}
+
+.appt[data-status="ongoing"] .state::before {
+  animation: agent-pulse 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .appt[data-status="ongoing"] .state::before {
+    animation: none;
+  }
+}
+
+.appt[data-attention="true"][data-status="upcoming"] .state,
+.appt[data-attention="true"][data-status="upcoming"] .appt-when {
+  color: var(--stale);
+}
+
+.appt[data-attention="true"][data-status="upcoming"] .state::before {
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+
+.appt[data-status="ended"] .state {
+  color: var(--ink-faint);
+  font-weight: 500;
+}
+
+.appt[data-status="ended"] .state::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+.appt[data-status="ended"] .appt-when,
+.appt[data-status="ended"] .appt-title,
+.appt[data-quiet="true"] .appt-title {
+  color: var(--ink-faint);
+}
+
+.appt[data-status="ended"] .appt-title {
+  font-weight: 400;
+}
+
+.appt[data-quiet="true"] .appt-title {
+  font-weight: 400;
+  font-style: italic;
+}
+
+.appt[data-stale="true"] .appt-title,
+.appt[data-stale="true"] .state {
+  color: var(--ink-faint);
+}
+
+/*
+ * Papers: the week's Picks as the Appointments' daybook, newest day first,
+ * each day's Briefing a link at the end of its heading. Interests are quiet
+ * ruled tags, a Wildcard says so in the italic serif, and a kept Pick takes
+ * the moss mark; each in words, never colour alone.
+ */
+
+.paper-day-date {
+  margin-right: auto;
+}
+
+.paper-briefing {
+  flex: none;
+  color: var(--ink);
+  font: 600 0.8125rem/1.2 var(--sans);
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.2em;
+}
+
+.paper-briefing:hover,
+.paper-briefing:focus-visible {
+  text-decoration-color: currentColor;
+}
+
+.paper .row-line {
+  align-items: flex-start;
+}
+
+.paper-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.paper-interests {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.paper-interest {
+  padding: 0.0625rem var(--space-2);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font: 500 0.75rem/1.4 var(--sans);
+  overflow-wrap: anywhere;
+}
+
+.paper-wildcard {
+  color: var(--ink);
+  font: italic 500 0.875rem/1.4 var(--serif);
+}
+
+.paper-why {
+  margin-top: var(--space-1);
+  color: var(--ink-soft);
+  font: 0.875rem/1.45 var(--serif);
+}
+
+.paper[data-stale="true"] .paper-title,
+.paper[data-stale="true"] .state {
+  color: var(--ink-faint);
+}
+
+/*
+ * Health: one ledger line per Metric, its latest value set in the masthead's
+ * serif, over a week of bars in ink. Today's bar is darkest; a day with no
+ * data has no bar at all and a faded letter, so it never reads as a zero.
+ */
+
+.health-name {
+  min-width: 0;
+  font: 500 0.9375rem/1.3 var(--sans);
+}
+
+.health-latest {
+  flex: none;
+  text-align: right;
+}
+
+.health-value {
+  font: 500 1.25rem/1.2 var(--serif);
+  font-variant-numeric: tabular-nums;
+}
+
+.health-day {
+  color: var(--ink-faint);
+  font: 0.8125rem/1.2 var(--sans);
+}
+
+.health-strip {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+}
+
+.health-day-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.health-bar {
+  display: block;
+  width: min(100%, 1.25rem);
+  height: 2.25rem;
+  fill: var(--ink-faint);
+}
+
+.health-day-slot[data-today="true"] .health-bar {
+  fill: var(--ink);
+}
+
+.health-letter {
+  color: var(--ink-faint);
+  font: 600 0.6875rem/1 var(--sans);
+  letter-spacing: 0.08em;
+}
+
+.health-day-slot[data-today="true"] .health-letter {
+  color: var(--ink);
+}
+
+.health-day-slot[data-missing="true"] .health-letter {
+  opacity: 0.5;
+}
+
+.health-metric[data-stale="true"] .health-value,
+.health-metric[data-stale="true"] .health-day-slot[data-today="true"] .health-letter {
+  color: var(--ink-faint);
+}
+
+.health-metric[data-stale="true"] .health-day-slot[data-today="true"] .health-bar {
+  fill: var(--ink-faint);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

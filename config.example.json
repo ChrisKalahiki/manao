@@ -1,0 +1,85 @@
+{
+  "//": "Copy to $XDG_CONFIG_HOME/manao/config.json (default ~/.config/manao/config.json), or point MANAO_CONFIG at it. Every option is optional: with no file at all the hub runs Herdr with the defaults below. Keys starting with // are comments. Never put secrets here.",
+
+  "//dbPath": "Where the SQLite store lives: an absolute path, or one starting with ~/. MANAO_DB wins over it. Default: $XDG_DATA_HOME/manao/hub.db (~/.local/share/manao/hub.db).",
+
+  "//eventRetentionDays": "Events older than this many days are pruned. Whole number. Default 30.",
+  "eventRetentionDays": 30,
+
+  "//api": "The read-only HTTP API (GET /api/items, /api/events, /api/sources, /api/agenda, /api/measurements). It listens on 127.0.0.1 only; reach it from other devices with tailscale serve (see the README), never funnel. Set to false to run the hub without it.",
+  "api": {
+    "//port": "Port on 127.0.0.1. Whole number; 0 picks a free one. Default 7420.",
+    "port": 7420
+  },
+
+  "//sources": "Each key is one enabled Source; leave a Source out to turn it off. Leaving out \"sources\" entirely enables Herdr with its defaults.",
+  "sources": {
+    "herdr": {
+      "//": "The agents running in the Herdr app, read from herdr-core's socket. The Source is herdr:local.",
+
+      "//socketPath": "Absolute path (or ~/...) to herdr-core's socket. Default: $XDG_STATE_HOME/herdr-core/default/default.sock (~/.local/state/...).",
+
+      "//intervalSeconds": "Safety-net poll interval in seconds. Default 5.",
+      "intervalSeconds": 5,
+
+      "//events": "Subscribe to herdr-core events so changes land between polls. Default true.",
+      "events": true,
+
+      "//staleAfterSeconds": "How long a Health report counts as recent; after that Herdr's Items are Stale. Default 3x intervalSeconds.",
+      "staleAfterSeconds": 15
+    },
+    "//brainDump": "Opt-in Todos from Brain-Dump's CLI. Remove this key to turn the Source off. The hub never reads the vault directly.",
+    "brainDump": {
+      "//command": "Bare executable on PATH, absolute path or ~/... . Default brain-dump. Under launchd, both brain-dump and its bun interpreter must be resolvable.",
+      "command": "brain-dump",
+
+      "//intervalSeconds": "Poll interval in seconds. Default 60.",
+      "intervalSeconds": 60,
+
+      "//staleAfterSeconds": "How long a Health report counts as recent. Default 3x intervalSeconds.",
+      "staleAfterSeconds": 180
+    },
+    "//googleCalendar": "Opt-in Appointments from the connected Google account (see google below), read-only. Remove this key to turn the Source off. Its Source id is google-calendar:primary.",
+    "googleCalendar": {
+      "//calendars": "Calendar ids of that account to read; primary is its own calendar. Others are listed in Google Calendar's settings, under Integrate calendar. Default [\"primary\"].",
+      "calendars": ["primary"],
+
+      "//intervalSeconds": "Fetch interval in seconds. Default 300.",
+      "intervalSeconds": 300,
+
+      "//daysAhead": "Fetch from the start of Today to the end of Today plus this many days. Whole number. Default 7.",
+      "daysAhead": 7,
+
+      "//staleAfterSeconds": "How long a Health report counts as recent. Default 3x intervalSeconds.",
+      "staleAfterSeconds": 900
+    },
+    "//googleHealth": "Opt-in daily Measurements (steps, sleep, resting heart rate, active zone minutes) from the connected Google account's Google Health API (see google below), read-only. Remove this key to turn the Source off; its Measurements are kept. Its Source id is google-health:primary. Enabling it adds scopes: run manao auth google again.",
+    "googleHealth": {
+      "//intervalSeconds": "Refresh interval in seconds. Each refresh rewrites yesterday and Today, and catches up on days missed while the hub was off. Default 3600.",
+      "intervalSeconds": 3600,
+
+      "//backfillDays": "How many days before Today a refresh reaches back at most: the first run's backfill and the longest catch-up. Whole number from 1 to 90. Default 30.",
+      "backfillDays": 30,
+
+      "//staleAfterSeconds": "How long a Health report counts as recent. Default 3x intervalSeconds.",
+      "staleAfterSeconds": 10800
+    },
+    "//paperBot": "Opt-in research Picks from paper-bot's CLI (paper-bot picks --json): this week's Picks, with Health following paper-bot's Scans. Remove this key to turn the Source off. Its Source id is paper-bot:picks. The hub never writes to paper-bot or the vault.",
+    "paperBot": {
+      "//command": "Bare executable on PATH, absolute path or ~/... . Default paper-bot. Under launchd it must be resolvable on the LaunchAgent's PATH.",
+      "command": "paper-bot",
+
+      "//intervalSeconds": "Poll interval in seconds. Default 900.",
+      "intervalSeconds": 900,
+
+      "//staleAfterSeconds": "How long a Health report counts as recent. Default 3x intervalSeconds.",
+      "staleAfterSeconds": 2700
+    }
+  },
+
+  "//google": "The Google connection, required by googleCalendar and googleHealth. manao auth google asks for the scopes of every Google Source enabled here. The token manao auth google writes lives at $XDG_DATA_HOME/manao/google-token.json (~/.local/share/manao/google-token.json), mode 0600.",
+  "google": {
+    "//client": "The Desktop OAuth client JSON downloaded from Cloud Console: an absolute path or ~/... . Keep it outside the repo with mode 0600.",
+    "client": "~/.config/manao/google.client.json"
+  }
+}
