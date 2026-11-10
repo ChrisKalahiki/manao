@@ -6,11 +6,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const TEMPLATE = fileURLToPath(new URL("../launchd/dev.manao.hub.plist", import.meta.url));
+const DIGEST_TEMPLATE = fileURLToPath(new URL("../launchd/dev.manao.digest.plist", import.meta.url));
 const FILLED_IN = { __NODE__: "/opt/node/bin/node", __NODE_DIR__: "/opt/node/bin", __REPO__: "/srv/manao", __HOME__: "/srv/home" };
 
-type PlistValue = string | boolean | PlistValue[] | { [key: string]: PlistValue };
+type PlistValue = string | number | boolean | PlistValue[] | { [key: string]: PlistValue };
 
-/** Just enough of the XML plist format for a LaunchAgent: dict, array, string, key, true, false. */
+/** Just enough of the XML plist format for a LaunchAgent: dict, array, string, integer, key, true, false. */
 function parsePlist(xml: string): PlistValue {
   const tokens = [...xml.matchAll(/<(?<closing>\/?)(?<tag>\w+)(?<selfClosed>\/?)>(?<text>[^<]*)/g)].map((m) => ({
     closing: m.groups?.closing === "/",
@@ -22,9 +23,9 @@ function parsePlist(xml: string): PlistValue {
   const value = (): PlistValue => {
     const { tag, selfClosed, text } = tokens[at++];
     if (selfClosed) return tag === "true";
-    if (tag === "string") {
+    if (tag === "string" || tag === "integer") {
       at++;
-      return text;
+      return tag === "integer" ? Number(text) : text;
     }
     const items: PlistValue[] = [];
     while (!tokens[at].closing) {
@@ -115,6 +116,52 @@ describe("the LaunchAgent template", () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), "manao-plist-"));
     try {
       const file = path.join(dir, "dev.manao.hub.plist");
+      writeFileSync(file, fillIn(template, FILLED_IN));
+      expect(execFileSync("plutil", ["-lint", file], { encoding: "utf8" })).toContain("OK");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("the digest LaunchAgent template", () => {
+  const template = readFileSync(DIGEST_TEMPLATE, "utf8");
+  const plist = asDict(parsePlist(fillIn(template, FILLED_IN)));
+
+  it("has the label the README commands use", () => {
+    expect(plist.Label).toBe("dev.manao.digest");
+  });
+
+  it("runs digest --drive on the built CLI, from the checkout", () => {
+    expect(plist.ProgramArguments).toEqual(["/opt/node/bin/node", "/srv/manao/dist/cli.js", "digest", "--drive"]);
+    expect(plist.WorkingDirectory).toBe("/srv/manao");
+  });
+
+  it("runs daily at 6:00, not at load, and is never kept alive", () => {
+    expect(plist.StartCalendarInterval).toEqual({ Hour: 6, Minute: 0 });
+    expect(plist.RunAtLoad).toBeUndefined();
+    expect(plist.KeepAlive).toBeUndefined();
+  });
+
+  it("writes output and errors to their own files under the logs folder, apart from the hub's", () => {
+    expect(plist.StandardOutPath).toBe("/srv/home/Library/Logs/manao/digest.out.log");
+    expect(plist.StandardErrorPath).toBe("/srv/home/Library/Logs/manao/digest.err.log");
+  });
+
+  it("sets only PATH, so the normal config and store lookup applies", () => {
+    expect(asDict(plist.EnvironmentVariables)).toEqual({ PATH: "/opt/node/bin:/usr/bin:/bin:/usr/sbin:/sbin" });
+  });
+
+  it("holds no username or home path once its placeholders are taken out", () => {
+    const bare = fillIn(template, { __NODE__: "", __NODE_DIR__: "", __REPO__: "", __HOME__: "" });
+    expect(bare).not.toMatch(/\/(Users|home)\//);
+    expect(leaksUsername(bare, os.userInfo().username)).toBe(false);
+  });
+
+  it.runIf(process.platform === "darwin")("passes plutil -lint once filled in", () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "manao-plist-"));
+    try {
+      const file = path.join(dir, "dev.manao.digest.plist");
       writeFileSync(file, fillIn(template, FILLED_IN));
       expect(execFileSync("plutil", ["-lint", file], { encoding: "utf8" })).toContain("OK");
     } finally {

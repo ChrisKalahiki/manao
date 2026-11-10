@@ -3,6 +3,7 @@ import { writeFileSync } from "node:fs";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { CALENDAR_SCOPES } from "../src/google-calendar/api.js";
+import { DRIVE_SCOPES } from "../src/google-drive/api.js";
 import type { GoogleEndpoints } from "../src/google/oauth.js";
 
 /** An events.list entry as Google sends it, extra fields included. */
@@ -48,6 +49,8 @@ export interface RecordedRequest {
   /** The body parsed as JSON, when it is JSON. */
   json?: unknown;
   authorization?: string;
+  /** The request body as sent. */
+  body: string;
   /** The response body as sent, after any `fields` selection. */
   sent?: string;
 }
@@ -67,6 +70,19 @@ export interface FakeSleep {
   endUtcOffset: number;
   minutesAsleep: number;
   nap?: boolean;
+}
+
+/** A file or folder in the fake Drive. */
+export interface FakeDriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  parents: string[];
+  content?: string;
+  createdTime: string;
+  trashed?: boolean;
+  /** False for one the user made in Drive: `drive.file` never shows this app those. */
+  byApp: boolean;
 }
 
 /** A Google Health civil date, as the API probe recorded it. */
@@ -104,6 +120,8 @@ export class FakeGoogle {
   sleep: FakeSleep[] = [];
   /** Points per Health page; Google pages only when asked to (sleep at most 25), but the reader follows any `nextPageToken`. */
   healthPageSize = 1000;
+  /** Everything in the fake Drive, in creation order. */
+  readonly driveFiles: FakeDriveFile[] = [];
   /** What the token endpoint says was granted on a refresh. */
   grantedScopes: readonly string[] = CALENDAR_SCOPES;
   readonly refreshTokens = new Set([REFRESH_TOKEN]);
@@ -138,6 +156,8 @@ export class FakeGoogle {
       token: `${this.url}/token`,
       calendar: `${this.url}/calendar/v3`,
       health: `${this.url}/v4`,
+      drive: `${this.url}/drive/v3`,
+      driveUpload: `${this.url}/upload/drive/v3`,
     };
   }
 
@@ -168,6 +188,7 @@ export class FakeGoogle {
       form: new URLSearchParams(body),
       json: req.headers["content-type"]?.startsWith("application/json") ? JSON.parse(body) : undefined,
       authorization: req.headers.authorization,
+      body,
     };
     this.requests.push(request);
     const reply = (status: number, json: unknown) => {
@@ -201,6 +222,10 @@ export class FakeGoogle {
     // The Health API refuses a token that carries any other API's scope.
     const disallowed = scopes.filter((scope) => !scope.startsWith(HEALTH_SCOPE_PREFIX));
     if (request.path.startsWith("/v4/") && disallowed.length > 0) return reply(...disallowedScopes(disallowed));
+    if (request.path.startsWith("/drive/") || request.path.startsWith("/upload/drive/")) {
+      if (!DRIVE_SCOPES.every((scope) => scopes.includes(scope))) return reply(...insufficientScopes());
+      return reply(...this.drive(request, req.headers["content-type"] ?? ""));
+    }
     if (request.path === "/calendar/v3/users/me/calendarList") {
       return reply(200, this.page(this.calendars, request.query));
     }
@@ -220,6 +245,43 @@ export class FakeGoogle {
       return reply(...this.sleepPoints(request.query));
     }
     reply(404, { error: { code: 404, message: "Not Found" } });
+  }
+
+  /** files.list (the query shapes the digest sends), folder create, multipart upload and media update; only files this app made. */
+  private drive(request: RecordedRequest, contentType: string): [number, unknown] {
+    const notFound: [number, unknown] = [404, { error: { code: 404, errors: [{ reason: "notFound" }] } }];
+    const visible = this.driveFiles.filter((file) => file.byApp);
+    if (request.method === "GET" && request.path === "/drive/v3/files") {
+      const matches = driveQuery(request.query.get("q") ?? "");
+      if (!matches) return [400, { error: { code: 400, errors: [{ reason: "invalidQuery" }] } }];
+      const found = visible.filter(matches).sort((a, b) => a.createdTime.localeCompare(b.createdTime));
+      return [200, { files: found.slice(0, Number(request.query.get("pageSize") ?? "100")).map(({ id }) => ({ id })) }];
+    }
+    if (request.method === "POST" && request.path === "/drive/v3/files") {
+      const { name, mimeType, parents } = request.json as { name: string; mimeType: string; parents?: string[] };
+      return [200, { id: this.addDriveFile({ name, mimeType, parents: parents ?? ["root"], byApp: true }).id }];
+    }
+    if (request.method === "POST" && request.path === "/upload/drive/v3/files" && request.query.get("uploadType") === "multipart") {
+      const boundary = contentType.match(/^multipart\/related; boundary=(.+)$/)?.[1];
+      const [metadata, content] = boundary ? multipartParts(request.body, boundary) : [];
+      if (metadata === undefined || content === undefined) return [400, { error: { code: 400, errors: [{ reason: "badContent" }] } }];
+      const { name, mimeType, parents } = JSON.parse(metadata) as { name: string; mimeType: string; parents?: string[] };
+      return [200, { id: this.addDriveFile({ name, mimeType, parents: parents ?? ["root"], content, byApp: true }).id }];
+    }
+    const update = request.path.match(/^\/upload\/drive\/v3\/files\/([^/]+)$/);
+    if (request.method === "PATCH" && update && request.query.get("uploadType") === "media") {
+      const file = visible.find((f) => f.id === update[1] && !f.trashed);
+      if (!file) return notFound;
+      file.content = request.body;
+      return [200, { id: file.id }];
+    }
+    return notFound;
+  }
+
+  addDriveFile(file: Omit<FakeDriveFile, "id" | "createdTime">): FakeDriveFile {
+    const added = { ...file, id: `drive-${this.driveFiles.length + 1}`, createdTime: new Date(Date.UTC(2026, 0, 1, 0, this.driveFiles.length)).toISOString() };
+    this.driveFiles.push(added);
+    return added;
   }
 
   /**
@@ -411,6 +473,31 @@ function filterRange(query: URLSearchParams, field: string): { from: string; to:
   const match = query.get("filter")?.match(/^(\S+) >= "([^"]+)" AND (\S+) < "([^"]+)"$/);
   if (!match || match[1] !== field || match[3] !== field) return undefined;
   return { from: match[2]!, to: match[4]! };
+}
+
+/** A Drive `q` of `and`-joined clauses, in only the shapes the digest sends; undefined for any other. */
+function driveQuery(q: string): ((file: FakeDriveFile) => boolean) | undefined {
+  const literal = (text: string) => text.replaceAll("\\'", "'").replaceAll("\\\\", "\\");
+  const tests = q.split(" and ").map((clause): ((file: FakeDriveFile) => boolean) | undefined => {
+    const name = clause.match(/^name = '((?:[^'\\]|\\.)*)'$/);
+    if (name) return (file) => file.name === literal(name[1]!);
+    const mimeType = clause.match(/^mimeType = '([^']*)'$/);
+    if (mimeType) return (file) => file.mimeType === mimeType[1];
+    const parent = clause.match(/^'([^']+)' in parents$/);
+    if (parent) return (file) => file.parents.includes(parent[1]!);
+    if (clause === "trashed = false") return (file) => !file.trashed;
+    return undefined;
+  });
+  if (tests.some((test) => test === undefined)) return undefined;
+  return (file) => tests.every((test) => test?.(file));
+}
+
+/** The parts of a multipart/related body, each without its headers. */
+function multipartParts(body: string, boundary: string): string[] {
+  return body
+    .split(`--${boundary}`)
+    .slice(1, -1)
+    .map((part) => part.slice(part.indexOf("\r\n\r\n") + 4, part.endsWith("\r\n") ? -2 : undefined));
 }
 
 const HEALTH_SCOPE_PREFIX = "https://www.googleapis.com/auth/googlehealth.";
