@@ -2,6 +2,7 @@
   "name": "manao",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "A personal hub for turning thoughts, tasks, and information into clarity and purposeful action.",
   "type": "module",
   "engines": {
