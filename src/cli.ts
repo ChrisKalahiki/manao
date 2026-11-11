@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
+import { DIGEST_DRIVE_FILE, DIGEST_DRIVE_FOLDER, digestFromStore } from "./digest/digest.js";
+import { GoogleConnection } from "./google/oauth.js";
 import { signIn } from "./google/sign-in.js";
+import { uploadMarkdown } from "./google-drive/api.js";
 import { startHubFromConfig } from "./hub/hub.js";
 import { loadConfig } from "./hub/config.js";
 import { googleScopes } from "./hub/google-sources.js";
@@ -15,6 +18,7 @@ const USAGE = `manao: a personal hub over Herdr and other Sources
 Usage:
   manao run
   manao mcp
+  manao digest [--out PATH] [--drive]
   manao auth google [--port PORT]
 
   run    Start the hub: read every Source the config enables and keep
@@ -26,6 +30,13 @@ Usage:
          the dashboard \`bun run build\` builds. Ctrl+C to stop.
   mcp    Serve the read-only MCP server over stdio, for an agent's client
          to launch. Reads the store \`run\` writes (same lookup), read-only.
+  digest Write Today's digest as one short Markdown page: the Agenda, open
+         Todos, recent Measurements and a line for other Sources. Reads the
+         store \`run\` writes (same lookup), read-only. Prints it, or with
+         --out writes it to PATH, and with --drive overwrites
+         "${DIGEST_DRIVE_FILE}" in the "${DIGEST_DRIVE_FOLDER}" folder of your Google Drive
+         (created the first time; needs google.client and a sign-in that
+         granted drive.file).
   auth google
          Sign in to Google once so the hub can read what every enabled
          Google Source (calendar, health) needs. Opens
@@ -37,7 +48,9 @@ Usage:
 `;
 
 function parseArgs(argv: string[]) {
-  const [command, subcommand, ...rest] = argv;
+  const [command, ...args] = argv;
+  const subcommand = args[0]?.startsWith("--") ? undefined : args[0];
+  const rest = subcommand === undefined ? args : args.slice(1);
   const flags = new Map<string, string | true>();
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i]!;
@@ -102,6 +115,41 @@ function mcp(): void {
   process.on("SIGTERM", stop);
 }
 
+async function digest(flags: Map<string, string | true>): Promise<void> {
+  const fail = (message: string) => new Error(`manao digest: ${message}`);
+  if (flags.get("out") === true) throw fail("--out needs a path.");
+  const out = str(flags, "out");
+  const configPath = resolveConfigPath();
+  const config = loadConfig(configPath);
+  const clientFile = config.google?.client;
+  if (flags.has("drive") && !clientFile) {
+    throw fail(`--drive needs google.client in ${configPath} (see the README's "Google connection").`);
+  }
+  const markdown = (() => {
+    try {
+      return digestFromStore(resolveDbPath(process.env, config), new Date());
+    } catch (err) {
+      throw fail(err instanceof Error ? err.message : String(err));
+    }
+  })();
+  if (out) {
+    writeFileSync(out, markdown);
+    console.log(homeRelative(`manao digest: wrote ${out}`));
+  }
+  if (clientFile && flags.has("drive")) {
+    const google = new GoogleConnection({ clientFile, tokenFile: resolveGoogleTokenPath() });
+    try {
+      const file = await uploadMarkdown(google, { folder: DIGEST_DRIVE_FOLDER, name: DIGEST_DRIVE_FILE, content: markdown });
+      console.log(
+        `manao digest: ${file.created ? "created" : "updated"} ${DIGEST_DRIVE_FOLDER}/${DIGEST_DRIVE_FILE}, https://drive.google.com/file/d/${file.id}/view`,
+      );
+    } catch (err) {
+      throw fail(`Google Drive: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  if (!out && !flags.has("drive")) process.stdout.write(markdown);
+}
+
 async function authGoogle(flags: Map<string, string | true>): Promise<void> {
   const fail = (message: string) => new Error(`manao auth google: ${message}`);
   const configPath = resolveConfigPath();
@@ -147,6 +195,7 @@ async function main(): Promise<void> {
   const { command, subcommand, flags } = parseArgs(process.argv.slice(2));
   if (command === "run") return run();
   if (command === "mcp") return mcp();
+  if (command === "digest") return digest(flags);
   if (command === "auth" && subcommand === "google") return authGoogle(flags);
   console.log(USAGE);
   process.exitCode = command ? 2 : 0;

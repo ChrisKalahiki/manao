@@ -12,6 +12,10 @@ export interface GoogleEndpoints {
   calendar: string;
   /** The Google Health API, v4. */
   health: string;
+  /** The Drive API, v3: metadata. */
+  drive: string;
+  /** The Drive API, v3: file contents. */
+  driveUpload: string;
 }
 
 export const GOOGLE_ENDPOINTS: GoogleEndpoints = {
@@ -19,6 +23,8 @@ export const GOOGLE_ENDPOINTS: GoogleEndpoints = {
   token: "https://oauth2.googleapis.com/token",
   calendar: "https://www.googleapis.com/calendar/v3",
   health: "https://health.googleapis.com/v4",
+  drive: "https://www.googleapis.com/drive/v3",
+  driveUpload: "https://www.googleapis.com/upload/drive/v3",
 };
 
 export const RECONNECT = "run `manao auth google`";
@@ -257,15 +263,16 @@ export class GoogleConnection {
 
   /** GETs JSON with the account's token; 401 means not connected. */
   getJson(url: string, scopes: readonly string[]): Promise<GoogleResponse> {
-    return this.authorized(url, {}, scopes);
+    return this.request(url, {}, scopes);
   }
 
   /** POSTs `body` as JSON for a read that Google takes as a POST, such as a roll-up; 401 means not connected. */
   postJson(url: string, body: unknown, scopes: readonly string[]): Promise<GoogleResponse> {
-    return this.authorized(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, scopes);
+    return this.request(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, scopes);
   }
 
-  private async authorized(
+  /** Any request with the account's token, its answer read as JSON; 401 means not connected. */
+  async request(
     url: string,
     init: { method?: string; headers?: Record<string, string>; body?: string },
     scopes: readonly string[],

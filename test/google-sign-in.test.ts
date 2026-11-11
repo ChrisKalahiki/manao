@@ -8,6 +8,7 @@ import { CALENDAR_SCOPES } from "../src/google-calendar/api.js";
 import { HEALTH_SCOPES } from "../src/google-health/api.js";
 import { signIn } from "../src/google/sign-in.js";
 import { createAdapters, parseConfig } from "../src/hub/config.js";
+import { DRIVE_SCOPES } from "../src/google-drive/api.js";
 import { googleScopes } from "../src/hub/google-sources.js";
 import { startHub } from "../src/hub/hub.js";
 import { resolveGoogleTokenPath } from "../src/hub/paths.js";
@@ -208,11 +209,11 @@ describe("manao auth google", () => {
     const scopesFor = (sources: object) => googleScopes(parseConfig({ google: { client: clientFile }, sources }));
 
     it.each([
-      ["the Calendar", { googleCalendar: {} }, CALENDAR_SCOPES],
-      ["Health", { googleHealth: {} }, HEALTH_SCOPES],
-      ["both", { googleCalendar: {}, googleHealth: {} }, [...CALENDAR_SCOPES, ...HEALTH_SCOPES]],
+      ["the Calendar", { googleCalendar: {} }, [...CALENDAR_SCOPES, ...DRIVE_SCOPES]],
+      ["Health", { googleHealth: {} }, [...HEALTH_SCOPES, ...DRIVE_SCOPES]],
+      ["both", { googleCalendar: {}, googleHealth: {} }, [...CALENDAR_SCOPES, ...HEALTH_SCOPES, ...DRIVE_SCOPES]],
       ["neither", { herdr: {} }, []],
-    ])("asks for the scopes of %s", (_name, sources, scopes) => {
+    ])("asks for the scopes of %s, plus drive.file for the digest when any", (_name, sources, scopes) => {
       expect(scopesFor(sources)).toEqual(scopes);
     });
 
@@ -223,12 +224,12 @@ describe("manao auth google", () => {
       await run({ scopes });
 
       const [authorize] = fake.requestsTo("/o/oauth2/v2/auth");
-      expect(authorize!.query.get("scope")).toBe([...CALENDAR_SCOPES, ...HEALTH_SCOPES].join(" "));
-      expect(JSON.parse(readFileSync(tokenFile, "utf8")).scopes).toEqual([...CALENDAR_SCOPES, ...HEALTH_SCOPES]);
+      expect(authorize!.query.get("scope")).toBe([...CALENDAR_SCOPES, ...HEALTH_SCOPES, ...DRIVE_SCOPES].join(" "));
+      expect(JSON.parse(readFileSync(tokenFile, "utf8")).scopes).toEqual([...CALENDAR_SCOPES, ...HEALTH_SCOPES, ...DRIVE_SCOPES]);
     });
 
     it("refuses a consent that leaves out Health's scopes and writes nothing", async () => {
-      fake.grantedScopes = CALENDAR_SCOPES;
+      fake.grantedScopes = [...CALENDAR_SCOPES, ...DRIVE_SCOPES];
 
       await expect(run({ scopes: scopesFor({ googleCalendar: {}, googleHealth: {} }) })).rejects.toThrow(
         `Google did not grant ${HEALTH_SCOPES.join(", ")}; nothing was written.`,

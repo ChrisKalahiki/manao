@@ -75,6 +75,10 @@ _Avoid_: measure, signal, data type
 One value of one Metric for one day, such as steps on 2026-10-19. A day with no data has no Measurement, which is not the same as a Measurement of zero. A night's sleep belongs to the day the user woke up. Unlike Items, past Measurements are kept.
 _Avoid_: health data, stat, vital
 
+**Digest**:
+One short Markdown page written once a day from the store: the Agenda, each Metric's latest Measurement against the week before it, and a line for other enabled Sources. It is the only thing manao sends off the hub host, to one file in the user's Google Drive.
+_Avoid_: report, briefing (a Briefing is paper-bot's), daily note
+
 ### Time
 
 **Today**:
